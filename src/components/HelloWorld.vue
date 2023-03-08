@@ -2,10 +2,26 @@
 import {computed, ref} from 'vue'
 import Web3 from 'web3'
 
-//const web3 = new Web3(new Web3.providers.WebsocketProvider('wss://bsc-rpc.publicnode.com'));
+enum Endpoint {
+  Ganache,
+  BSC,
+  Ethereum
+}
 
-//const web3 = new Web3('ws://127.0.0.1:8545')
-const web3 = new Web3('wss://ethereum-rpc.publicnode.com')
+function getEndpoint(endpoint: Endpoint): string {
+  switch (endpoint) {
+    case Endpoint.Ganache:
+      return "ws://127.0.0.1:8545"
+    case Endpoint.BSC:
+      return "wss://bsc-rpc.publicnode.com"
+    case Endpoint.Ethereum:
+      return "wss://ethereum-rpc.publicnode.com"
+    default:
+      throw "wrong endpoint argument"
+  }
+}
+
+const web3 = new Web3(getEndpoint(Endpoint.Ethereum));
 
 let contracts = ref<string[]>([])
 let datetime = ref<string>()
@@ -26,8 +42,10 @@ web3.eth.subscribe('newBlockHeaders').on('data', (header) => {
   let timestamp: number = <number>header.timestamp * 1000
   datetime.value = (new Date(timestamp).toLocaleString())
   web3.eth.getBlock(header.hash, (error, block) => {
-    if (error)
+    if (error) {
+      console.error(error)
       return
+    }
     if (block && block.transactions.length > 0) {
       //it should check if it's a candidate. u can check if it doesn't have a to.
       //and only in that case call getTransactionMap to get the newContract address
@@ -55,10 +73,10 @@ const sortedContracts = computed(() => {
   <table>
     <thead>
     <tr>
-      <th>{{ datetime }}</th>
+      <th>Updated to {{ datetime }}</th>
     </tr>
     <tr>
-      <td>{{ notInteresting }}</td>
+      <td>Contracts scraped {{ notInteresting + interesting }}</td>
     </tr>
     </thead>
     <tbody>

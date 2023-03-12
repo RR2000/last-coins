@@ -1,34 +1,22 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue'
-import Web3 from 'web3'
 import {TransactionReceipt} from 'web3-core'
+import {Endpoint, getEndpoint} from "../utils/endpoints";
+import Web3 from "web3";
 
-enum Endpoint {
-  Ferraglia,
-  Ganache,
-  BSC,
-  Ethereum
-}
+const endpointConfiguration = getEndpoint(Endpoint.BSC);
+const web3 = new Web3(endpointConfiguration.webSocket);
 
-function getEndpoint(endpoint: Endpoint): string {
-  switch (endpoint) {
-    case Endpoint.Ferraglia:
-      return "ws://127.0.0.1:8546"
-    case Endpoint.Ganache:
-      return "ws://127.0.0.1:8545"
-    case Endpoint.BSC:
-      return "wss://bsc-rpc.publicnode.com"
-    case Endpoint.Ethereum:
-      return "wss://ethereum-rpc.publicnode.com"
-  }
-}
-
-const web3 = new Web3(getEndpoint(Endpoint.Ferraglia));
 
 let contracts = ref<string[]>([])
 let datetime = ref<string>()
 let notInteresting = ref<number>(0)
 let interesting = ref<number>(0)
+
+web3.eth.isSyncing((error, syncing) => {
+  if(syncing)
+    datetime.value = ((syncing.currentBlock / syncing.highestBlock)*100).toFixed(2).toString() + "%"
+})
 
 const updateContracts = (receipt: TransactionReceipt) => {
   if (receipt.contractAddress != null) {
@@ -80,7 +68,7 @@ const sortedContracts = computed(() => {
     <tbody>
     <tr v-for="contract in sortedContracts" :key="contract">
       <td style="font-family: monospace;">
-        <a :href="'https://etherscan.io/address/' + contract" target="_blank">{{ contract }}</a>
+        <a :href="endpointConfiguration.explorer + contract" target="_blank">{{ contract }}</a>
       </td>
     </tr>
     </tbody>

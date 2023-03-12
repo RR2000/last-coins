@@ -1,4 +1,4 @@
-export default [{
+[{
   "inputs": [{"internalType": "address", "name": "_feeToSetter", "type": "address"}],
   "payable": false,
   "stateMutability": "nonpayable",

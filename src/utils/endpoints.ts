@@ -1,17 +1,17 @@
-import Web3 from 'web3';
-import {Contract} from 'web3-eth-contract'
-// @ts-ignore
-import PancakeSwapFactory from '../abis/PancakeSwap/PancakeSwapFactory.js'
-// @ts-ignore
-import UniSwapFactory from '../abis/UniSwap/UniSwapFactory.js'
+import PancakeSwapFactoryJson from '../abis/PancakeSwap/PancakeSwapFactory.json';
+import UniSwapFactoryJson from '../abis/UniSwap/UniSwapFactory.json';
+import {AbiItem} from 'web3-utils'
 
-const web3 = new Web3();
+// @ts-ignore
+const PancakeSwapFactory: Record<string, AbiItem> = PancakeSwapFactoryJson;
+// @ts-ignore
+const UniSwapFactory: Record<string, AbiItem> = UniSwapFactoryJson;
 
 export enum Endpoint {
-  Ferraglia,
-  Ganache,
-  BSC,
-  Ethereum
+  Ferraglia = "Ferraglia -> Ethereum",
+  Ganache = "Blockchain Locale" ,
+  BSC = "API -> BSC",
+  Ethereum = "API -> Ethereum"
 }
 
 export type EndpointConfig = {
@@ -20,7 +20,7 @@ export type EndpointConfig = {
   exchangeAddresses: any
 }
 
-export function getEndpoint(endpoint: Endpoint): EndpointConfig {
+export function getEndpointConfiguration(endpoint: Endpoint): EndpointConfig {
   switch (endpoint) {
     case Endpoint.Ferraglia:
       return {

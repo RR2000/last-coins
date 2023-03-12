@@ -2,29 +2,50 @@
 import {computed, ref} from 'vue'
 import {TransactionReceipt} from 'web3-core'
 import {Endpoint, getEndpoint} from "../utils/endpoints";
-import Web3 from "web3";
+import Web3 from "web3"
 
 const endpointConfiguration = getEndpoint(Endpoint.BSC);
 const web3 = new Web3(endpointConfiguration.webSocket);
+const factory = new web3.eth.Contract(endpointConfiguration.exchangeAddresses[0], endpointConfiguration.exchangeAddresses[1])
 
-
-let contracts = ref<string[]>([])
+let contractsCreated = ref<{ timestamp: number, token: string }[]>([])
+let contractsPairAdded = ref<{ timestamp: number, token: string }[]>([])
 let datetime = ref<string>()
-let notInteresting = ref<number>(0)
-let interesting = ref<number>(0)
+
+factory.events.PairCreated({},
+    function (error: any, event: any) {
+      if (error) {
+        console.error("error", error)
+        return
+      }
+
+      web3.eth.getBlock(event.blockNumber, (error, block) => {
+        if (error) {
+          console.error(error)
+          return
+        }
+        console.log("New pair added", event.returnValues.token0, "at", new Date(<number>block.timestamp * 1000));
+        contractsPairAdded.value.push({
+          timestamp: <number>block.timestamp * 1000,
+          token: event.returnValues.token0
+        })
+      })
+    }
+)
+
 
 web3.eth.isSyncing((error, syncing) => {
-  if(syncing)
-    datetime.value = ((syncing.currentBlock / syncing.highestBlock)*100).toFixed(2).toString() + "%"
+  if (syncing)
+    datetime.value = ((syncing.currentBlock / syncing.highestBlock) * 100).toFixed(2).toString() + "%"
 })
 
-const updateContracts = (receipt: TransactionReceipt) => {
+const updateContracts = (receipt: TransactionReceipt, timestamp: number) => {
   if (receipt.contractAddress != null) {
-    console.log('New contract created', receipt.contractAddress)
-    contracts.value = [...contracts.value, receipt.contractAddress]
-    interesting.value++
-  } else {
-    notInteresting.value++
+    console.log('New contract created', receipt.contractAddress, "at", new Date(timestamp));
+    contractsCreated.value.push({
+      timestamp: timestamp,
+      token: receipt.contractAddress
+    })
   }
 }
 
@@ -43,32 +64,59 @@ web3.eth.subscribe('newBlockHeaders').on('data', (header) => {
       })
 
       Promise.all(promises).then((receipts) => {
-        receipts.forEach((receipt) => updateContracts(receipt))
+        receipts.forEach((receipt) => updateContracts(receipt, timestamp))
       }).catch((error) => console.error(error))
     }
   })
 })
 
-const sortedContracts = computed(() => {
-  return contracts.value.reverse()
+const mergedContracts = computed(() => {
+  const created = contractsCreated.value.map(c => ({...c, type: "created"}))
+  const added = contractsPairAdded.value.map(c => ({...c, type: "added"}))
+  return [...created, ...added].sort((a, b) => b.timestamp - a.timestamp)
 })
 
-</script>
+const contractsByType = computed(() => {
+  const contracts = {
+    created: [],
+    added: []
+  } as Record<string, any[]>
 
+  mergedContracts.value.forEach((c: { timestamp: number, token: string, type: string }) => {
+    contracts[c.type].push(c)
+  })
+  return contracts
+})
+
+
+</script>
 <template>
-  <table>
+  <h1>Welcome to Raoul's Crypto ultra mega rafforzato pro</h1>
+  <h2>Updated to {{ datetime }}</h2>
+  <table style="margin: 0 auto;table-layout: fixed; width: 100%;">
     <thead>
     <tr>
-      <th>Updated to {{ datetime }}</th>
-    </tr>
-    <tr>
-      <td>Contracts scraped {{ notInteresting + interesting }}</td>
+      <th>Timestamp</th>
+      <th>Contracts created</th>
+      <th>Pairs created</th>
     </tr>
     </thead>
     <tbody>
-    <tr v-for="contract in sortedContracts" :key="contract">
+    <tr v-for="contract in mergedContracts">
+      <td>{{ new Date(contract.timestamp).toLocaleString() }}</td>
       <td style="font-family: monospace;">
-        <a :href="endpointConfiguration.explorer + contract" target="_blank">{{ contract }}</a>
+        <a v-if="contract.type === 'created'"
+           :href="endpointConfiguration.explorer + contract.token"
+           target="_blank">
+          {{ contract.token }}
+        </a>
+      </td>
+      <td style="font-family: monospace;">
+        <a v-if="contract.type === 'added'"
+           :href="endpointConfiguration.explorer + contract.token"
+           target="_blank">
+          {{ contract.token }}
+        </a>
       </td>
     </tr>
     </tbody>

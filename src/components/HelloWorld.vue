@@ -16,7 +16,10 @@ web3.eth.isSyncing((error, syncing) => {
   if (syncing)
     datetime.value = ((syncing.currentBlock / syncing.highestBlock) * 100).toFixed(2).toString() + "%"
   else{
-    const factory = new web3.eth.Contract(endpointConfiguration.exchangeAddresses[0], endpointConfiguration.exchangeAddresses[1])
+    if(typeof endpointConfiguration.exchangeAddresses === "undefined") {
+      throw "exchangeAddresses is undefined"
+    }
+    const factory = new web3.eth.Contract(endpointConfiguration.exchangeAddresses[0].abi, endpointConfiguration.exchangeAddresses[0].address)
     factory.events.PairCreated({},
         function (error: any, event: any) {
           if (error) {

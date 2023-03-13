@@ -15,11 +15,11 @@ let datetime = ref<string>()
 web3.eth.isSyncing((error, syncing) => {
   if (syncing)
     datetime.value = ((syncing.currentBlock / syncing.highestBlock) * 100).toFixed(2).toString() + "%"
-  else{
-    if(typeof endpointConfiguration.exchangeAddresses === "undefined") {
+  else {
+    if (typeof endpointConfiguration.factoryAddresses === "undefined") {
       throw "exchangeAddresses is undefined"
     }
-    const factory = new web3.eth.Contract(endpointConfiguration.exchangeAddresses[0].abi, endpointConfiguration.exchangeAddresses[0].address)
+    const factory = new web3.eth.Contract(endpointConfiguration.factoryAddresses[0].abi, endpointConfiguration.factoryAddresses[0].address)
     factory.events.PairCreated({},
         function (error: any, event: any) {
           if (error) {
@@ -29,13 +29,15 @@ web3.eth.isSyncing((error, syncing) => {
 
           web3.eth.getBlock(event.blockNumber, (error, block) => {
             if (error) {
-              console.error("error while getting block number in events factory ",error)
+              console.error("error while getting block number in events factory ", error)
               return
             }
+            console.log(event.returnValues)
             console.log("New pair added", event.returnValues.token0, "at", new Date(<number>block.timestamp * 1000));
             contractsPairAdded.value.push({
               timestamp: <number>block.timestamp * 1000,
-              token: event.returnValues.token0
+              token: event.returnValues.token0.toUpperCase() !== endpointConfiguration.baseTokenAddress?.toUpperCase() ?
+                  event.returnValues.token0 : event.returnValues.token1
             })
           })
         }
@@ -53,6 +55,7 @@ const updateContracts = (receipt: TransactionReceipt, timestamp: number) => {
   }
 }
 
+/*
 web3.eth.subscribe('newBlockHeaders').on('data', (header) => {
   let timestamp: number = <number>header.timestamp * 1000
   datetime.value = (new Date(timestamp).toLocaleString())
@@ -73,6 +76,8 @@ web3.eth.subscribe('newBlockHeaders').on('data', (header) => {
     }
   })
 })
+*/
+
 type MergedRow = {
   timestamp: number,
   created: string[],

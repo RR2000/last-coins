@@ -1,0 +1,80 @@
+name: CI
+
+# PR and main: unit tests, type check, build, and a smoke test of the nginx image.
+# main: image on GitHub Container Registry, ghcr.io/rr2000/last-coins:sha-<commit> and :main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-fund
+      - run: npm audit --audit-level=low
+      - run: npm test
+      - run: npm run build
+
+  image-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t last-coins:ci .
+      - name: headers and config
+        run: |
+          set -eu
+          # same restrictions as the homelab stack: read-only root, tmpfs for what nginx writes, few capabilities
+          docker run -d --name lc -p 8080:80 -e ETH_RPC_URL=https://eth.example.org             --read-only --tmpfs /etc/nginx/conf.d --tmpfs /var/cache/nginx --tmpfs /var/run             --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add NET_BIND_SERVICE             --security-opt no-new-privileges last-coins:ci
+          for i in $(seq 1 30); do curl -fs -o /dev/null http://127.0.0.1:8080/ && break; sleep 1; done
+          curl -fsS -D h.txt -o index.html http://127.0.0.1:8080/
+          grep -i '^content-security-policy:' h.txt
+          grep -qi "connect-src 'self' https://bsc-rpc.publicnode.com https://eth.example.org;" h.txt
+          grep -q '<div id="app">' index.html
+          test "$(curl -fsS http://127.0.0.1:8080/config.json)" = '{"rpc":{"bsc":"https://bsc-rpc.publicnode.com","eth":"https://eth.example.org"}}'
+          curl -fsS -D a.txt -o /dev/null "http://127.0.0.1:8080$(grep -o '/assets/[^"]*\.js' index.html)"
+          grep -qi 'immutable' a.txt
+          curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/some/page | grep -q 200
+      - if: always()
+        run: docker logs lc || true
+
+  image:
+    if: github.event_name == 'push'
+    needs: [test, image-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/rr2000/last-coins:${{ steps.tag.outputs.tag }}
+            ghcr.io/rr2000/last-coins:main
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

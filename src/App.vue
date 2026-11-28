@@ -44,7 +44,7 @@ function statusText(s: WatchStatus): string {
           <circle cx="12" cy="16" r="9" />
           <circle cx="20" cy="16" r="9" />
         </svg>
-        <h1>Last coins</h1>
+        <h1>Last Coins</h1>
       </div>
       <p class="lede">
         New trading pairs, the moment they are created on PancakeSwap (BNB Smart Chain) and Uniswap
